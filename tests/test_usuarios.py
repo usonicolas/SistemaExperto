@@ -1,7 +1,10 @@
-"""CU01 y RNF01: registro publico del usuario, ingreso seguro y ausencia de administracion (requieren MySQL)."""
+"""CU01 y RNF01: registro publico del consultante, ingreso seguro y ausencia de administracion (requieren MySQL)."""
 import pytest
 
 from se_app import config
+from se_app.contenedor import contenedor
+from se_app.negocio.modelos import INGENIERO, Usuario
+from se_app.negocio.servicio_usuarios import ServicioUsuarios
 from tests.utilidades import borrar_usuario, db, navegador, requiere_mysql
 
 pytestmark = requiere_mysql
@@ -29,12 +32,13 @@ def test_registro_valida_campos(cliente):
     assert not db.consultar_uno("SELECT 1 AS x FROM usuario WHERE correo = 'malo'")
 
 
-def test_registro_crea_el_usuario_con_su_cliente(cliente):
-    r = cliente.post("/registro", data=NUEVO, follow_redirects=False)
+def test_registro_crea_un_consultante_con_su_cliente(cliente):
+    r = cliente.post("/registro", data={**NUEVO, "rol": "INGENIERO_CONOCIMIENTO"}, follow_redirects=False)
     assert r.status_code == 303 and r.headers["location"].startswith("/viviendas")
     fila = db.consultar_uno(
-        "SELECT u.contrasena_hash, c.tipo_documento, c.numero_documento FROM usuario u "
+        "SELECT u.rol, u.activo, u.contrasena_hash, c.tipo_documento, c.numero_documento FROM usuario u "
         "JOIN cliente c ON c.id_usuario = u.id_usuario WHERE u.usuario = %s", (NUEVO["usuario"],))
+    assert (fila["rol"], fila["activo"]) == ("CONSULTANTE", 1)    # el registro publico no permite elegir rol
     assert fila["contrasena_hash"].startswith("scrypt$")          # RNF02: nunca en texto plano
     assert (fila["tipo_documento"], fila["numero_documento"]) == ("CC", "70000001")
     assert cliente.get("/viviendas").status_code == 200
@@ -52,6 +56,20 @@ def test_bloqueo_tras_intentos_fallidos(cliente):
     assert "Cuenta bloqueada" in r.text                          # ni con la contraseña correcta
     assert db.consultar_uno("SELECT bloqueado_hasta > NOW() AS b FROM usuario WHERE usuario = %s",
                             (NUEVO["usuario"],))["b"] == 1
+
+
+def test_el_ingeniero_no_ingresa_a_la_aplicacion(cliente):
+    """No hay rol de administrador: una cuenta de ingeniero de conocimiento no tiene acceso."""
+    nombre = "prueba.ingeniero"
+    borrar_usuario(nombre)
+    try:
+        contenedor.dao_usuarios.crear(Usuario("Prueba", "Ingeniero", "prueba.ingeniero@ejemplo.test", nombre,
+                                              ServicioUsuarios.cifrar(NUEVO["contrasena"]), rol=INGENIERO))
+        r = cliente.post("/login", data={"usuario": nombre, "contrasena": NUEVO["contrasena"]})
+        assert "Esta cuenta no tiene acceso a la aplicación" in r.text
+        assert cliente.get("/", follow_redirects=False).headers["location"] == "/login"
+    finally:
+        borrar_usuario(nombre)
 
 
 def test_las_rutas_exigen_sesion(cliente):

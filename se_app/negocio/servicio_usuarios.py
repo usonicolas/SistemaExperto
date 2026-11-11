@@ -1,8 +1,10 @@
-"""Registro e ingreso de los usuarios (CU01) con acceso seguro (RNF01, RNF02).
+"""Registro e ingreso de los consultantes (CU01) con acceso seguro (RNF01, RNF02).
 
-La aplicacion no tiene roles ni administrador: cualquier persona se
-registra con sus datos de cliente para diagnosticar y llevar el historial
-de sus viviendas, y solo ve su propia informacion.
+Cualquier persona se registra como consultante con sus datos de cliente
+para diagnosticar sus viviendas y llevar su historial, y solo ve su propia
+informacion. La aplicacion no tiene un rol de administrador: las cuentas de
+ingeniero de conocimiento existen en la tabla usuario, pero no ingresan a la
+aplicacion; el conocimiento se mantiene con los scripts SQL.
 """
 import base64
 import hashlib
@@ -13,7 +15,7 @@ from datetime import datetime, timedelta
 
 from .. import config
 from .errores import ErrorAcceso, ErrorValidacion
-from .modelos import Cliente, Usuario
+from .modelos import CONSULTANTE, Cliente, Usuario
 from .servicio_clientes import validar_cliente
 
 
@@ -53,7 +55,7 @@ class ServicioUsuarios:
     def autenticar(self, usuario: str, contrasena: str) -> dict:
         """Valida las credenciales y bloquea la cuenta tras MAX_INTENTOS intentos fallidos."""
         u = self.usuarios.por_usuario(usuario)
-        if u is None:
+        if u is None or not u.activo:
             raise ErrorAcceso("Usuario o contraseña incorrectos.")
         ahora = datetime.now()
         if u.bloqueado_hasta and u.bloqueado_hasta > ahora:
@@ -67,7 +69,9 @@ class ServicioUsuarios:
             self.usuarios.registrar_intento_fallido(u.id_usuario, intentos)
             raise ErrorAcceso(f"Usuario o contraseña incorrectos. Le quedan {config.MAX_INTENTOS - intentos} intento(s).")
         self.usuarios.desbloquear(u.id_usuario)
-        return {"id": u.id_usuario, "usuario": u.usuario, "nombre": u.nombre}
+        if u.rol != CONSULTANTE:
+            raise ErrorAcceso("Esta cuenta no tiene acceso a la aplicación: solo ingresan los consultantes.")
+        return {"id": u.id_usuario, "rol": u.rol, "usuario": u.usuario, "nombre": u.nombre}
 
     # ------------------------------------------------------------ registro (CU01)
 
@@ -93,14 +97,15 @@ class ServicioUsuarios:
         return errores
 
     def registrar(self, datos: dict) -> dict:
-        """Registro publico: crea el usuario y su registro de cliente en una sola transaccion e inicia sesion."""
+        """Registro publico: crea un consultante con su registro de cliente en una transaccion e inicia sesion."""
         errores = self.validar(datos)
         errores.update(validar_cliente(datos, self.clientes))
         if errores:
             raise ErrorValidacion("Revise los campos marcados.", errores)
         with self.transaccion():
             id_usuario = self.usuarios.crear(Usuario(datos["nombres"], datos["apellidos"], datos["correo"],
-                                                     datos["usuario"], self.cifrar(datos["contrasena"])))
+                                                     datos["usuario"], self.cifrar(datos["contrasena"]),
+                                                     rol=CONSULTANTE))
             self.clientes.crear(Cliente(id_usuario, datos["tipo_documento"], datos["numero_documento"],
                                         datos.get("telefono") or None))
         return self.autenticar(datos["usuario"], datos["contrasena"])

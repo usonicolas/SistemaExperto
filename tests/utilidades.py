@@ -35,4 +35,6 @@ def borrar_usuario(usuario: str) -> None:
                 "JOIN usuario u ON u.id_usuario = c.id_usuario WHERE u.usuario = %s", (usuario,))
     db.ejecutar("DELETE c FROM cliente c JOIN usuario u ON u.id_usuario = c.id_usuario WHERE u.usuario = %s",
                 (usuario,))
+    db.ejecutar("DELETE b FROM bitacora_conocimiento b JOIN usuario u ON u.id_usuario = b.id_usuario "
+                "WHERE u.usuario = %s", (usuario,))
     db.ejecutar("DELETE FROM usuario WHERE usuario = %s", (usuario,))

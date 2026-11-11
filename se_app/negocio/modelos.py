@@ -15,6 +15,13 @@ TIPOS_DOCUMENTO = (("CC", "Cédula de ciudadanía"), ("CE", "Cédula de extranje
                    ("TI", "Tarjeta de identidad"), ("PAS", "Pasaporte"))
 TIPOS_VIVIENDA = ("Casa", "Apartamento", "Otro")
 
+# Roles del sistema (columna usuario.rol). La aplicacion solo la usan los consultantes: el
+# ingeniero de conocimiento mantiene la base de conocimiento con los scripts SQL y no ingresa
+# a la aplicacion. No hay un rol de administrador.
+CONSULTANTE = "CONSULTANTE"
+INGENIERO = "INGENIERO_CONOCIMIENTO"
+ROLES = (CONSULTANTE, INGENIERO)
+
 
 # ---------------------------------------------------------------- base de conocimiento
 
@@ -132,10 +139,10 @@ class Decision:
 
 @dataclass
 class Usuario:
-    """Persona que se registra para diagnosticar y llevar el historial de sus viviendas (tabla usuario).
+    """Persona registrada en el sistema, con su rol (tabla usuario).
 
-    La aplicacion no tiene roles ni administrador: todos los usuarios son
-    consultantes y cada uno solo ve sus propios datos.
+    Los consultantes se registran para diagnosticar sus viviendas y llevar su
+    historial, y cada uno solo ve sus propios datos.
     """
     nombres: str
     apellidos: str
@@ -145,7 +152,9 @@ class Usuario:
     id_usuario: int | None = None
     intentos_fallidos: int = 0
     bloqueado_hasta: datetime | None = None
+    activo: bool = True
     fecha_registro: datetime | None = None
+    rol: str = CONSULTANTE
 
     @property
     def nombre(self) -> str:

@@ -4,8 +4,9 @@ El script 04_consultas_granulos.sql inserta el usuario de prueba 'consulta'
 con un resumen de ejemplo que no sirve para iniciar sesion. Este script le
 asigna la contrasena de prueba SEED_PASSWORD (aplicacion/.env), cifrada con
 scrypt (RNF02), y le crea su registro de cliente y una vivienda si no los
-tiene. La aplicacion no tiene administrador: cualquier otra persona se
-registra desde la pantalla de registro.
+tiene. El usuario ingeniero que inserta el script 04 no ingresa a la
+aplicacion (no hay rol de administrador); cualquier otra persona se registra
+como consultante desde la pantalla de registro.
 
 Uso (desde la carpeta aplicacion):
     .venv\\Scripts\\python -m scripts.semilla

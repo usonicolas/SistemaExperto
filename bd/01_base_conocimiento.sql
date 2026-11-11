@@ -9,10 +9,8 @@
 --  SGBD: MySQL 8.0.16 o superior (por los CHECK).
 --
 --  Contiene el saber experto del sistema: que se pregunta y que se
---  concluye. No cambia con el uso diario: la aplicacion solo la lee. Se
---  carga y se actualiza con los scripts SQL (03_carga_conocimiento.sql),
---  que el ingeniero de conocimiento escribe con lo que aporta el experto
---  de dominio; la aplicacion no tiene un administrador del conocimiento.
+--  concluye. No cambia con el uso diario, solo cuando el ingeniero de
+--  conocimiento registra lo que aporta el experto de dominio (RF03).
 --
 --  4 tablas (limite definido por el docente):
 --    categoria  - las 7 categorias (raiz de cada arbol de decision)

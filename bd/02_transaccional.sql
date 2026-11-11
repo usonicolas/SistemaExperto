@@ -10,19 +10,15 @@
 --  vivienda, que respondio y que hipotesis se le entregaron. Crece con
 --  cada uso.
 --
---  7 tablas, una por cada proceso transaccional del sistema:
---    usuario                - usuarios registrados y su acceso (RF01, RNF01)
---    cliente                - datos del cliente de cada usuario (RF01)
+--  8 tablas, una por cada proceso transaccional del sistema:
+--    usuario                - usuarios y su rol (RF04, RNF01)
+--    cliente                - datos del cliente de cada consultante (RF01)
 --    vivienda               - inmuebles de cada cliente (RF01)
 --    atencion               - sesion de diagnostico de una categoria (RF02)
 --    atencion_respuesta     - respuestas Si/No del usuario en la sesion (RF02)
 --    atencion_diagnostico   - hipotesis concluida, copia historica (RF02)
 --    atencion_hipotesis     - las hipotesis ponderadas de la atencion (RF02)
---
---  La aplicacion no tiene roles ni administrador: todos los usuarios son
---  consultantes y solo leen la base de conocimiento. El conocimiento lo
---  cargan y actualizan el ingeniero de conocimiento y el experto de
---  dominio con los scripts SQL (01 y 03), fuera de la aplicacion.
+--    bitacora_conocimiento  - cambios a la base de conocimiento (RF03, RNF04)
 --
 --  4 llaves foraneas PUENTE hacia se_base_conocimiento:
 --    atencion.id_categoria             -> categoria
@@ -43,13 +39,18 @@ USE se_transaccional;
 
 -- ---------------------------------------------------------------------
 -- Tabla: usuario
--- Personas que se registran para diagnosticar sus viviendas y llevar su
--- historial. No hay roles: cada usuario solo ve sus propios datos.
+-- Todas las personas que usan el sistema, con uno de los dos roles:
+--   CONSULTANTE             - cliente que diagnostica sus viviendas
+--   INGENIERO_CONOCIMIENTO  - mantiene la base de conocimiento y
+--                             administra los usuarios
+-- El experto de dominio no es un rol: aporta el conocimiento en las
+-- entrevistas y el ingeniero de conocimiento lo registra.
 -- Soporta el acceso seguro (RNF01): contrasena cifrada (RNF02) y
 -- bloqueo por intentos fallidos.
 -- ---------------------------------------------------------------------
 CREATE TABLE usuario (
   id_usuario        INT          NOT NULL AUTO_INCREMENT,
+  rol               ENUM('CONSULTANTE','INGENIERO_CONOCIMIENTO') NOT NULL DEFAULT 'CONSULTANTE',
   nombres           VARCHAR(80)  NOT NULL,
   apellidos         VARCHAR(80)  NOT NULL,
   correo            VARCHAR(120) NOT NULL,
@@ -57,23 +58,24 @@ CREATE TABLE usuario (
   contrasena_hash   VARCHAR(255) NOT NULL COMMENT 'Resumen con sal, nunca texto plano (RNF02)',
   intentos_fallidos SMALLINT     NOT NULL DEFAULT 0 COMMENT 'Bloqueo por intentos (RNF01)',
   bloqueado_hasta   DATETIME     NULL,
+  activo            TINYINT(1)   NOT NULL DEFAULT 1,
   fecha_registro    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
   PRIMARY KEY (id_usuario),
   UNIQUE INDEX uq_usuario_correo (correo ASC),
   UNIQUE INDEX uq_usuario_usuario (usuario ASC)
 ) ENGINE = InnoDB
-  COMMENT = 'Usuarios registrados del sistema experto';
+  COMMENT = 'Usuarios del sistema experto y su rol';
 
 
 -- ---------------------------------------------------------------------
 -- Tabla: cliente
 -- Datos del cliente (propietario, arrendatario o habitante) asociado a
--- cada usuario, en relacion uno a uno; se registran juntos. Un cliente gestiona
+-- cada usuario consultante, en relacion uno a uno. Un cliente gestiona
 -- una o varias viviendas (RF01). El documento no puede repetirse.
 -- ---------------------------------------------------------------------
 CREATE TABLE cliente (
   id_cliente       INT          NOT NULL AUTO_INCREMENT,
-  id_usuario       INT          NOT NULL COMMENT 'Usuario asociado (uno a uno)',
+  id_usuario       INT          NOT NULL COMMENT 'Usuario consultante asociado (uno a uno)',
   tipo_documento   ENUM('CC','CE','TI','PAS') NOT NULL DEFAULT 'CC',
   numero_documento VARCHAR(20)  NOT NULL,
   telefono         VARCHAR(20)  NULL,
@@ -85,7 +87,7 @@ CREATE TABLE cliente (
     FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario)
     ON DELETE RESTRICT ON UPDATE CASCADE
 ) ENGINE = InnoDB
-  COMMENT = 'Clientes: datos de cada usuario';
+  COMMENT = 'Clientes: datos de cada usuario consultante';
 
 
 -- ---------------------------------------------------------------------
@@ -181,8 +183,7 @@ CREATE TABLE atencion_respuesta (
 -- Tabla: atencion_diagnostico
 -- Hipotesis mas probable al cerrar la atencion. Guarda COPIA del texto
 -- ademas del id_hipotesis: si la hipotesis se edita o se desactiva
--- despues con los scripts de la base de conocimiento, el historial ya
--- entregado no cambia.
+-- despues (RF03), el historial ya entregado no cambia.
 -- id_hipotesis queda NULL cuando no hubo diagnostico concluyente
 -- (RNF22). Como cada atencion cubre una sola categoria, tiene a lo sumo
 -- un diagnostico.
@@ -252,3 +253,29 @@ CREATE TABLE atencion_hipotesis (
 ) ENGINE = InnoDB
   COMMENT = 'Hipotesis ponderadas por probabilidad al cerrar la atencion';
 
+
+-- ---------------------------------------------------------------------
+-- Tabla: bitacora_conocimiento
+-- Registro de CADA cambio hecho a la base de conocimiento: quien, cuando
+-- y que (RF03, RNF04). En detalle se guardan el valor anterior y el
+-- nuevo, lo que permite revertir el cambio (RNF20). Vive aqui porque la
+-- base de conocimiento esta limitada a 4 tablas y la bitacora es un dato
+-- operativo que crece. Solo el INGENIERO_CONOCIMIENTO genera registros
+-- (lo valida la aplicacion).
+-- ---------------------------------------------------------------------
+CREATE TABLE bitacora_conocimiento (
+  id_bitacora     INT          NOT NULL AUTO_INCREMENT,
+  id_usuario      INT          NOT NULL COMMENT 'Ingeniero de conocimiento que hizo el cambio',
+  tabla_afectada  ENUM('categoria','pregunta','hipotesis','respuesta') NOT NULL,
+  codigo_registro VARCHAR(40)  NOT NULL COMMENT 'Codigo de la pregunta o hipotesis afectada',
+  accion          ENUM('CREAR','MODIFICAR','DESACTIVAR','ACTIVAR','ELIMINAR') NOT NULL,
+  detalle         VARCHAR(500) NULL COMMENT 'Valor anterior y nuevo, o motivo del cambio',
+  fecha_cambio    DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (id_bitacora),
+  INDEX idx_bitacora_usuario (id_usuario ASC),
+  INDEX idx_bitacora_registro (tabla_afectada ASC, codigo_registro ASC),
+  CONSTRAINT fk_bitacora_usuario
+    FOREIGN KEY (id_usuario) REFERENCES usuario (id_usuario)
+    ON DELETE RESTRICT ON UPDATE CASCADE
+) ENGINE = InnoDB
+  COMMENT = 'Bitacora de cambios a la base de conocimiento';

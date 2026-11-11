@@ -5,10 +5,12 @@ de una vivienda ante una falla eléctrica, hidráulica, estructural, de humedad,
 le hace preguntas Sí/No, calcula con un motor de inferencia bayesiano las hipótesis más probables y
 entrega el diagnóstico con su urgencia, la acción recomendada y el especialista sugerido.
 
-La aplicación **no tiene roles ni administrador**. Cualquier persona se registra con sus datos de
-cliente para diagnosticar sus viviendas y llevar su historial, y solo ve su propia información. La base
-de conocimiento (preguntas, hipótesis y gránulos) se carga y se actualiza con los scripts SQL de la
-carpeta `bd/`; la aplicación solo la lee.
+La aplicación **no tiene un rol de administrador**. Cualquier persona se registra como consultante con
+sus datos de cliente, asocia una o varias viviendas, diagnostica y lleva el historial de sus atenciones;
+solo ve su propia información. La base de conocimiento (preguntas, hipótesis y gránulos) se carga y se
+actualiza con los scripts SQL de la carpeta `bd/`: la aplicación solo la lee, no muestra el árbol de
+decisión ni las reglas y no permite modificar el conocimiento. Las cuentas de ingeniero de conocimiento
+existen en la tabla `usuario` (rol `INGENIERO_CONOCIMIENTO`), pero no ingresan a la aplicación.
 
 ```
 Navegador ──HTMX──▶ presentacion/   Controladores FastAPI y vistas Jinja2
@@ -81,7 +83,7 @@ Todos los comandos se ejecutan desde la carpeta `aplicacion`.
 .venv\Scripts\python -m pytest -q tests
 ```
 
-Son 40 pruebas. Las unitarias del motor bayesiano y del motor Prolog no necesitan MySQL: usan
+Son 41 pruebas. Las unitarias del motor bayesiano y del motor Prolog no necesitan MySQL: usan
 `ConocimientoDAOMemoria`, una implementación en memoria de la interfaz `ConocimientoDAO`. Con MySQL
 encendido recorren además la ruta de cada una de las 49 reglas, la conclusión por defecto en las 7
 categorías, los 12 casos del plan de validación del manual, el registro y el ingreso, y una atención completa.
@@ -91,7 +93,7 @@ categorías, los 12 casos del plan de validación del manual, el registro y el i
 | `test_inferencia_bayesiana.py` | 22 |
 | `test_motor_reglas.py` | 6 |
 | `test_clientes.py` | 7 |
-| `test_usuarios.py` | 5 |
+| `test_usuarios.py` | 6 |
 
 ## Respaldos
 
@@ -138,7 +140,7 @@ aplicacion/
 │       ├── conexion.py              BaseDatos: pool de conexiones y transacciones
 │       └── mysql/                   Implementaciones MySQL y FabricaDAOMySQL
 ├── scripts/                         semilla.py, respaldo.py y capturas.py
-├── tests/                           40 pruebas automatizadas (pytest)
+├── tests/                           41 pruebas automatizadas (pytest)
 └── estilos/app.css                  Fuente de Tailwind
 ```
 

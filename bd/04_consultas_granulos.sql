@@ -153,13 +153,13 @@ ORDER BY h.codigo;
 USE se_transaccional;
 
 -- ---------------------------------------------------------------------
--- B1. Usuario de prueba con su cliente y su vivienda. La aplicacion no
---     tiene roles ni administrador: todo usuario es consultante.
---     La contrasena es un valor de ejemplo; la aplicacion guarda el
+-- B1. Usuarios de prueba, uno por rol, y el cliente con su vivienda.
+--     Las contrasenas son valores de ejemplo; la aplicacion guarda el
 --     resumen real con scripts/semilla.py (RNF02).
 -- ---------------------------------------------------------------------
-INSERT INTO usuario (nombres, apellidos, correo, usuario, contrasena_hash) VALUES
-  ('Usuario', 'Consultante', 'consulta@ejemplo.test', 'consulta', 'ejemplo.no.valido.consulta');
+INSERT INTO usuario (rol, nombres, apellidos, correo, usuario, contrasena_hash) VALUES
+  ('INGENIERO_CONOCIMIENTO', 'Usuario', 'Ingeniero',   'ingeniero@ejemplo.test', 'ingeniero', 'ejemplo.no.valido.ingeniero'),
+  ('CONSULTANTE',            'Usuario', 'Consultante', 'consulta@ejemplo.test',  'consulta',  'ejemplo.no.valido.consulta');
 
 INSERT INTO cliente (id_usuario, tipo_documento, numero_documento, telefono)
 SELECT id_usuario, 'CC', '1000000003', '3000000000'
@@ -295,7 +295,18 @@ FROM se_base_conocimiento.hipotesis h WHERE h.codigo = 'C03';
 UPDATE atencion SET estado = 'SIN_DIAGNOSTICO', fecha_fin = NOW() WHERE id_atencion = @atencion2;
 
 -- ---------------------------------------------------------------------
--- B9. Historial del cliente (RF02): atenciones, respuestas y diagnostico.
+-- B9. Registro en bitacora: el ingeniero de conocimiento valida con el
+--     experto una hipotesis complementaria (RF03, RNF04). El detalle
+--     guarda el valor anterior y el nuevo (RNF20).
+-- ---------------------------------------------------------------------
+UPDATE se_base_conocimiento.hipotesis SET validada = 1 WHERE codigo = 'E08';
+
+INSERT INTO bitacora_conocimiento (id_usuario, tabla_afectada, codigo_registro, accion, detalle)
+SELECT id_usuario, 'hipotesis', 'E08', 'MODIFICAR', 'validada: 0 -> 1 (revisada con el electricista)'
+FROM usuario WHERE usuario = 'ingeniero';
+
+-- ---------------------------------------------------------------------
+-- B10. Historial del cliente (RF02): atenciones, respuestas y diagnostico.
 -- ---------------------------------------------------------------------
 SELECT a.id_atencion, a.fecha_inicio, c.nombre AS categoria, a.zona_vivienda, a.estado,
        COUNT(ar.id_atencion_respuesta) AS preguntas_respondidas,
@@ -312,7 +323,7 @@ GROUP BY a.id_atencion, a.fecha_inicio, c.nombre, a.zona_vivienda, a.estado,
          d.diagnostico_texto, d.nivel_urgencia, d.especialista_sugerido
 ORDER BY a.fecha_inicio DESC;
 
--- B10. Preguntas y respuestas de una atencion, en el orden en que se hicieron.
+-- B11. Preguntas y respuestas de una atencion, en el orden en que se hicieron.
 SELECT ar.orden, p.texto_pregunta, IF(ar.respuesta = 1, 'Si', 'No') AS respuesta
 FROM atencion_respuesta ar
 JOIN se_base_conocimiento.pregunta p ON p.id_pregunta = ar.id_pregunta

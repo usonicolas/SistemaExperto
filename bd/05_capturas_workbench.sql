@@ -93,7 +93,7 @@ HAVING COUNT(*) = (SELECT COUNT(*) FROM se_base_conocimiento.respuesta r3
 
 
 -- ---------------------------------------------------------------------
--- CAPTURA 6  ->  figuras/captura_B9_historial.png
+-- CAPTURA 6  ->  figuras/captura_B10_historial.png
 -- Historial del cliente de prueba (atencion con diagnostico y sin el)
 -- ---------------------------------------------------------------------
 SELECT a.id_atencion, c.nombre AS categoria, a.zona_vivienda, a.estado,

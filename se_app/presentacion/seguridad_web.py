@@ -1,8 +1,9 @@
 """Control de acceso en la web (RNF01): dependencias de FastAPI sobre la sesion.
 
-La aplicacion no tiene roles: toda ruta protegida exige una sesion iniciada,
-y los servicios comprueban que cada vivienda o atencion pertenezca al
-cliente de esa sesion (SinPermiso en caso contrario).
+No hay rutas de administracion: toda ruta protegida exige la sesion de un
+consultante (solo ellos ingresan), y los servicios comprueban que cada
+vivienda o atencion pertenezca al cliente de esa sesion (SinPermiso en caso
+contrario).
 """
 from fastapi import Request
 

@@ -5,8 +5,8 @@ from fastapi import Request
 from fastapi.responses import HTMLResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 
-from ..negocio.modelos import URGENCIAS
-from ..negocio.servicio_usuarios import ServicioUsuarios
+from .. import config
+from ..negocio.modelos import TIPOS_DOCUMENTO, TIPOS_VIVIENDA, URGENCIAS
 
 CARPETA = Path(__file__).parent
 MESES = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
@@ -19,7 +19,8 @@ class Vistas:
         # motor_reglas: MotorProlog, de donde salen las categorias del menu.
         self.motor_reglas = motor_reglas
         self.plantillas = Jinja2Templates(directory=CARPETA / "templates")
-        self.plantillas.env.globals.update(ETIQUETA_URGENCIA=self.ETIQUETA_URGENCIA, URGENCIAS=URGENCIAS)
+        self.plantillas.env.globals.update(ETIQUETA_URGENCIA=self.ETIQUETA_URGENCIA, URGENCIAS=URGENCIAS,
+                                           TIPOS_DOCUMENTO=TIPOS_DOCUMENTO, TIPOS_VIVIENDA=TIPOS_VIVIENDA)
         self.plantillas.env.filters["fecha"] = self.fecha
         self.plantillas.env.filters["pct"] = lambda p: f"{float(p) * 100:.1f}".replace(".", ",")
 
@@ -31,8 +32,8 @@ class Vistas:
 
     def pagina(self, request: Request, nombre: str, **ctx) -> HTMLResponse:
         u = request.session.get("usuario")
-        ctx.update(request=request, usuario=u, experto=bool(u and ServicioUsuarios.es_experto(u)),
-                   ruta_actual=request.url.path, categorias=self.motor_reglas.categorias)
+        ctx.update(request=request, usuario=u, ruta_actual=request.url.path, categorias=self.motor_reglas.categorias,
+                   aviso_mantenimiento=config.AVISO_MANTENIMIENTO)
         return self.plantillas.TemplateResponse(request, nombre, ctx)
 
     @staticmethod

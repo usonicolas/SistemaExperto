@@ -12,11 +12,14 @@
 </head>
 <body class="font-sans text-slate-800 antialiased text-base bg-slate-50">
 {% if usuario %}
-{% set nav = [("/", "home", "Tablero"), ("/diagnostico/nuevo", "brain", "Diagnosticar"), ("/historial", "clock", "Historial"), ("/citas", "calendar", "Citas"), ("/viviendas", "building", "Mis viviendas")] %}
-{% set nav_exp = [("/conocimiento", "book", "Base de conocimiento"), ("/arbol", "tree", "Árbol de decisión")] %}
-{% set nav_admin = [("/bitacora", "list", "Bitácora"), ("/usuarios", "users", "Usuarios")] %}
+{% set menus = [("Gestión de atenciones", [("/", "home", "Tablero"), ("/diagnostico/nuevo", "brain", "Diagnosticar"), ("/historial", "clock", "Historial")]),
+                ("Gestión de clientes y viviendas", [("/viviendas", "building", "Mis datos y viviendas")])] %}
 {% macro enlace(item) -%}
-  {%- set activo = (item[0] == "/" and ruta_actual == "/") or (item[0] != "/" and ruta_actual.startswith(item[0].rsplit("/nuevo", 1)[0])) -%}
+  {%- set p = item[0] -%}
+  {%- if p == "/" -%}{%- set activo = ruta_actual == "/" -%}
+  {%- elif p == "/diagnostico/nuevo" -%}{%- set activo = ruta_actual.startswith("/diagnostico") -%}
+  {%- else -%}{%- set activo = ruta_actual == p or ruta_actual.startswith(p ~ "/") -%}
+  {%- endif -%}
   <a href="{{ item[0] }}" class="group flex items-center gap-3 rounded-xl px-3.5 py-2.5 text-[15px] font-medium transition {{ 'bg-indigo-500/15 text-white ring-1 ring-inset ring-indigo-400/20' if activo else 'text-slate-400 hover:text-white hover:bg-white/5' }}" {% if activo %}aria-current="page"{% endif %}>
     <span class="{{ 'text-indigo-300' if activo else 'text-slate-500 group-hover:text-slate-300' }}">{{ ui.icono(item[1], "w-5 h-5") }}</span>{{ item[2] }}</a>
 {%- endmacro %}
@@ -26,20 +29,15 @@
       <span class="h-10 w-10 rounded-xl bg-indigo-500 text-white grid place-items-center shadow-lg shadow-indigo-500/30">{{ ui.icono("shield", "w-5 h-5") }}</span>
       <span><span class="block text-white font-semibold leading-tight">SE Vivienda</span><span class="block text-slate-500 text-sm">Diagnóstico experto</span></span>
     </a>
-    <nav class="space-y-1" aria-label="Principal">
-      <p class="px-3.5 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Consulta</p>
-      {% for i in nav %}{{ enlace(i) }}{% endfor %}
+    {% for titulo, items in menus %}
+    <nav class="space-y-1" aria-label="{{ titulo }}">
+      <p class="px-3.5 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">{{ titulo }}</p>
+      {% for i in items %}{{ enlace(i) }}{% endfor %}
     </nav>
-    {% if experto %}
-    <nav class="space-y-1" aria-label="Experto">
-      <p class="px-3.5 pb-2 text-xs font-semibold uppercase tracking-wider text-slate-500">Experto / Admin</p>
-      {% for i in nav_exp %}{{ enlace(i) }}{% endfor %}
-      {% if usuario.rol == "ADMINISTRADOR" %}{% for i in nav_admin %}{{ enlace(i) }}{% endfor %}{% endif %}
-    </nav>
-    {% endif %}
+    {% endfor %}
     <div class="mt-auto flex items-center gap-3 rounded-xl bg-white/5 p-3">
       <span class="h-10 w-10 shrink-0 rounded-full bg-indigo-500/20 text-indigo-200 grid place-items-center text-sm font-semibold">{{ usuario.nombre.split()[0][0] }}{{ usuario.nombre.split()[-1][0] }}</span>
-      <span class="flex-1 min-w-0"><span class="block text-sm text-white font-medium truncate">{{ usuario.nombre }}</span><span class="block text-xs text-slate-400">{{ {"CONSULTANTE": "Consultante", "EXPERTO": "Experto de dominio", "ADMINISTRADOR": "Administrador"}[usuario.rol] }}</span></span>
+      <span class="flex-1 min-w-0"><span class="block text-sm text-white font-medium truncate">{{ usuario.nombre }}</span><span class="block text-xs text-slate-400">@{{ usuario.usuario }}</span></span>
       <a href="/salir" class="rounded-lg p-2 text-slate-400 hover:text-white hover:bg-white/10" title="Cerrar sesión" aria-label="Cerrar sesión">{{ ui.icono("logout", "w-5 h-5") }}</a>
     </div>
   </aside>
@@ -53,6 +51,9 @@
         <div class="ml-auto flex items-center gap-2">{% block acciones %}{% endblock %}</div>
       </div>
     </header>
+    {% if aviso_mantenimiento %}
+    <div role="status" class="no-print border-b border-amber-200 bg-amber-50 px-4 py-2.5 text-center text-sm font-medium text-amber-900">{{ ui.icono("alert", "inline w-4 h-4 -mt-0.5") }} Mantenimiento programado: {{ aviso_mantenimiento }}</div>
+    {% endif %}
     {% block banner %}{% endblock %}
     <main class="mx-auto w-full max-w-7xl px-4 sm:px-6 lg:px-10 py-6 lg:py-10">{% block contenido %}{% endblock %}</main>
   </div>

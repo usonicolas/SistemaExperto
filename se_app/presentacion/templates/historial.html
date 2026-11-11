@@ -9,6 +9,10 @@
 </div>
 {% endif %}
 <form hx-get="/historial" hx-target="#tabla" hx-trigger="change" hx-push-url="true" class="flex flex-wrap gap-3 mb-6" method="get" action="/historial">
+  <select name="vivienda" aria-label="Vivienda" class="campo w-auto">
+    <option value="0">Todas las viviendas</option>
+    {% for v in viviendas %}<option value="{{ v.id_vivienda }}" {{ "selected" if v.id_vivienda == vivienda }}>{{ v.alias }}{{ " (inactiva)" if not v.activa }}</option>{% endfor %}
+  </select>
   <select name="categoria" aria-label="Categoría" class="campo w-auto">
     <option value="">Todas las categorías</option>
     {% for c in categorias %}<option value="{{ c.codigo }}" {{ "selected" if c.codigo == categoria }}>{{ c.nombre }}</option>{% endfor %}

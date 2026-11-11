@@ -1,5 +1,5 @@
-{# Campos del formulario de usuario, compartidos por el registro publico y
-   el alta que hace el administrador. Recibe datos (lo ya escrito) y errores. #}
+{# Campos del formulario de registro: datos del usuario y de su registro de cliente.
+   Recibe datos (lo ya escrito) y errores. #}
 {% import "_ui.html" as ui %}
 
 {% macro campo(nombre, etiqueta, tipo="text", autocompletar="", ayuda="", requerido=true) %}
@@ -16,28 +16,27 @@
 </div>
 {% endmacro %}
 
-{% macro campos(datos, errores, tipos_documento, roles=none) %}
-<div class="grid sm:grid-cols-2 gap-x-5 gap-y-5">
-  {{ campo("nombres", "Nombres", autocompletar="given-name") }}
-  {{ campo("apellidos", "Apellidos", autocompletar="family-name") }}
+{% macro campos_cliente(datos, errores) %}
+<div class="sm:col-span-2 grid sm:grid-cols-3 gap-x-5 gap-y-5">
+  <div class="sm:col-span-3 border-t border-slate-100 pt-5"><p class="seccion-titulo">Datos del cliente</p></div>
   <div>
     <label for="f-tipo_documento" class="etiqueta">Tipo de documento</label>
     <select id="f-tipo_documento" name="tipo_documento" class="campo">
-      {% for codigo, nombre in tipos_documento %}<option value="{{ codigo }}" {{ "selected" if datos.get("tipo_documento", "CC") == codigo }}>{{ nombre }}</option>{% endfor %}
+      {% for codigo, nombre in TIPOS_DOCUMENTO %}<option value="{{ codigo }}" {{ "selected" if datos.get("tipo_documento", "CC") == codigo }}>{{ nombre }}</option>{% endfor %}
     </select>
   </div>
   {{ campo("numero_documento", "Número de documento") }}
-  {{ campo("correo", "Correo electrónico", "email", "email") }}
   {{ campo("telefono", "Teléfono", "tel", "tel", requerido=false) }}
-  {% if roles %}
-  <div class="sm:col-span-2">
-    <label for="f-rol" class="etiqueta">Rol</label>
-    <select id="f-rol" name="rol" class="campo">
-      {% for r in roles %}<option value="{{ r }}" {{ "selected" if datos.get("rol", "CONSULTANTE") == r }}>{{ {"CONSULTANTE": "Consultante · diagnostica su vivienda", "EXPERTO": "Experto de dominio · mantiene la base de conocimiento", "ADMINISTRADOR": "Administrador · gestiona usuarios y bitácora"}[r] }}</option>{% endfor %}
-    </select>
-  </div>
-  {% endif %}
-  <div class="sm:col-span-2 border-t border-slate-100 pt-5">{{ campo("usuario", "Nombre de usuario", autocompletar="username", ayuda="Con él iniciará sesión. Letras, números, punto o guion.") }}</div>
+</div>
+{% endmacro %}
+
+{% macro campos(datos, errores) %}
+<div class="grid sm:grid-cols-2 gap-x-5 gap-y-5">
+  {{ campo("nombres", "Nombres", autocompletar="given-name") }}
+  {{ campo("apellidos", "Apellidos", autocompletar="family-name") }}
+  <div class="sm:col-span-2">{{ campo("correo", "Correo electrónico", "email", "email") }}</div>
+  {{ campos_cliente(datos, errores) }}
+  <div class="sm:col-span-2 border-t border-slate-100 pt-5">{{ campo("usuario", "Nombre de usuario", autocompletar="username", ayuda="Con él se inicia sesión. Letras, números, punto o guion.") }}</div>
   {{ campo("contrasena", "Contraseña", "password", "new-password", "Mínimo 8 caracteres.") }}
   {{ campo("confirmacion", "Repita la contraseña", "password", "new-password") }}
 </div>

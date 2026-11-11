@@ -4,7 +4,7 @@
   ganancia de informacion, parada y consultas granulares.
 - Contra la base real (se omiten si MySQL no responde): las 49 reglas
   quedan primeras respondiendo segun su ruta, la conclusion por defecto
-  en las 7 categorias y los casos de la Tabla 52 del manual.
+  en las 7 categorias y los casos del plan de validacion del manual.
 """
 import math
 import sys
@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from se_app.contenedor import contenedor  # noqa: E402
 from se_app.negocio.inferencia_bayesiana import MotorBayesiano  # noqa: E402
 from se_app.negocio.modelos import H0, Evidencia  # noqa: E402
-from tests.base_prueba import REGLAS, RepositorioEnMemoria  # noqa: E402
+from tests.base_prueba import REGLAS, ConocimientoDAOMemoria  # noqa: E402
 
 requiere_mysql = pytest.mark.skipif(not contenedor.bd.disponible(), reason="MySQL no disponible")
 
@@ -35,7 +35,7 @@ def recorrer(motor, categoria, contestar, limite=40):
 
 @pytest.fixture
 def motor():
-    return MotorBayesiano(RepositorioEnMemoria())
+    return MotorBayesiano(ConocimientoDAOMemoria())
 
 
 # ---------------------------------------------------------------- unitarias
@@ -61,13 +61,13 @@ def test_actualizacion_aplica_el_teorema_de_bayes(motor):
 
 def test_cada_respuesta_hace_una_consulta_granular(motor):
     motor.inferir("ELE", [Evidencia("olor_quemado", 1), Evidencia("sobrecalentamiento", 1)])
-    assert motor.repositorio.consultas == 2
+    assert motor.conocimiento.consultas == 2
 
 
 def test_pregunta_inicial_es_la_de_mayor_ganancia(motor):
     decision = motor.decidir("ELE", [])
     dist = motor.distribucion_inicial("ELE")
-    ganancias = {p: motor.ganancia(dist, motor.repositorio.antecedentes_de_pregunta(p))
+    ganancias = {p: motor.ganancia(dist, motor.conocimiento.antecedentes_de_pregunta(p))
                  for p in ("olor_quemado", "sobrecalentamiento", "breaker", "chispas")}
     assert decision.pregunta.codigo == max(ganancias, key=ganancias.get)
     assert decision.ganancia > 0
@@ -105,7 +105,7 @@ def _granulos(kb):
 
 @pytest.fixture(scope="module")
 def base_real():
-    return contenedor.repo_conocimiento.leer_base()
+    return contenedor.dao_conocimiento.leer_base()
 
 
 @requiere_mysql
@@ -128,21 +128,31 @@ def test_conclusion_por_defecto_en_cada_categoria(base_real):
         assert decision.conclusion.es_h0, c["codigo"]
 
 
-CASOS_TABLA_52 = [
+# Los 12 casos de la tabla del plan de validacion del manual. Las preguntas que el motor formula y no
+# estan en el caso se responden No: el motor las hace para descartar las demas hipotesis.
+CASOS_PLAN_VALIDACION = [
     ("CP01", "ELE", {"olor_quemado": 1, "sobrecalentamiento": 1}, "E05"),
     ("CP02", "ELE", {"olor_quemado": 1, "breaker": 1, "sobrecalentamiento": 0}, "E01"),
-    ("CP06", "EST", None, "S03"),
+    ("CP03", "ELE", {"chispas": 1, "olor_quemado": 0, "cables": 0}, "E09"),
+    ("CP04", "HID", {"fuga_visible": 1, "humedad_lavamanos": 0}, "H08"),
+    ("CP05", "HID", {"agua_color": 1, "fuga_visible": 0}, "H06"),
+    ("CP06", "EST", {"hundimiento": 1, "inclinacion": 1}, "S03"),
+    ("CP07", "EST", {"hundimiento": 1, "inclinacion": 0}, "S07"),
+    ("CP08", "HUM", {"manchas": 1, "moho": 0}, "M05"),
     ("CP09", "GAS", {"olor_gas": 1, "silbido": 0}, "G04"),
+    ("CP10", "GAS", {"silbido": 1, "olor_gas": 0, "consumo_gas": 0}, "G06"),
+    ("CP11", "CTE", {"corrientes_aire": 1}, "C01"),
+    ("CP12", "CAC", {"ruido_exterior": 0}, "H0"),
 ]
 
 
 @requiere_mysql
-@pytest.mark.parametrize("caso,categoria,respuestas,esperado", CASOS_TABLA_52)
+@pytest.mark.parametrize("caso,categoria,respuestas,esperado", CASOS_PLAN_VALIDACION)
 def test_casos_de_prueba_del_manual(base_real, caso, categoria, respuestas, esperado):
-    if respuestas is None:
-        respuestas = dict(next(c for h, _, c in _granulos(base_real) if h == esperado))
     decision, _ = recorrer(contenedor.motor_bayesiano, categoria, lambda p: respuestas.get(p, 0))
     assert decision.conclusion.codigo == esperado, caso
+    if esperado != "H0":
+        assert decision.distribucion.probabilidad(esperado) >= MotorBayesiano.UMBRAL_CONFIRMACION, caso
 
 
 @requiere_mysql

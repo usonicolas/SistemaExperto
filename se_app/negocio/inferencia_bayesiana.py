@@ -43,15 +43,15 @@ class MotorBayesiano:
     GANANCIA_MINIMA = 0.02       # bits por debajo de los cuales una pregunta no se considera util
     RELEVANCIA_MINIMA = 0.01     # probabilidad por debajo de la cual una hipotesis ya no se verifica
 
-    def __init__(self, repositorio):
-        # repositorio: RepositorioConocimiento (capa de datos), inyectado.
-        self.repositorio = repositorio
+    def __init__(self, conocimiento):
+        # conocimiento: ConocimientoDAO (capa de datos), inyectado.
+        self.conocimiento = conocimiento
 
     # ------------------------------------------------------------ distribucion de probabilidad
 
     def distribucion_inicial(self, categoria: str) -> Distribucion:
         """Probabilidades previas, a partir del factor de certeza de cada regla."""
-        reglas = self.repositorio.hipotesis_activas(categoria)                 # consulta granular 1
+        reglas = self.conocimiento.hipotesis_activas(categoria)                 # consulta granular 1
         hipotesis = {h.codigo: h for h in reglas}
         hipotesis[H0] = Hipotesis.sin_falla(categoria)
         suma_fc = sum(h.certeza for h in reglas) or 1
@@ -69,7 +69,7 @@ class MotorBayesiano:
                    antecedentes: list[Antecedente] | None = None) -> Distribucion:
         """Aplica Bayes con una respuesta. Consulta el granulo de la pregunta en la base de conocimiento."""
         if antecedentes is None:
-            antecedentes = self.repositorio.antecedentes_de_pregunta(evidencia.pregunta)   # consulta granular
+            antecedentes = self.conocimiento.antecedentes_de_pregunta(evidencia.pregunta)   # consulta granular
         espera = {a.hipotesis: a.valor for a in antecedentes}
         conjunta = {h: p * self.verosimilitud(espera.get(h), evidencia.valor)
                     for h, p in distribucion.probabilidades.items()}
@@ -104,7 +104,7 @@ class MotorBayesiano:
         """Un ciclo del motor: siguiente pregunta o conclusion, con la distribucion actual."""
         distribucion = self.inferir(categoria, evidencias)
         respondidas = {e.pregunta for e in evidencias}
-        candidatas = [p for p in self.repositorio.preguntas_de_categoria(categoria) if p.codigo not in respondidas]
+        candidatas = [p for p in self.conocimiento.preguntas_de_categoria(categoria) if p.codigo not in respondidas]
         lider = distribucion.lider()
         pendientes_lider = self._pendientes(lider, respondidas)
 
@@ -113,7 +113,7 @@ class MotorBayesiano:
             return Decision(distribucion)
 
         # Consultas granulares sucesivas: el granulo de cada pregunta candidata.
-        granulos = {p.codigo: self.repositorio.antecedentes_de_pregunta(p.codigo) for p in candidatas}
+        granulos = {p.codigo: self.conocimiento.antecedentes_de_pregunta(p.codigo) for p in candidatas}
         ganancias = {p.codigo: self.ganancia(distribucion, granulos[p.codigo]) for p in candidatas}
         mejor = max(candidatas, key=lambda p: ganancias[p.codigo])
         if ganancias[mejor.codigo] >= self.GANANCIA_MINIMA:
@@ -133,7 +133,7 @@ class MotorBayesiano:
         """Antecedentes de la hipotesis que el usuario aun no ha respondido (consulta su granulo)."""
         if hipotesis.es_h0:
             return []
-        return [a.pregunta for a in self.repositorio.antecedentes_de_hipotesis(hipotesis.codigo)
+        return [a.pregunta for a in self.conocimiento.antecedentes_de_hipotesis(hipotesis.codigo)
                 if a.pregunta not in respondidas]
 
     # ------------------------------------------------------------ explicacion
@@ -142,7 +142,7 @@ class MotorBayesiano:
         """Efecto de cada respuesta sobre una hipotesis: verosimilitud y probabilidad antes y despues."""
         filas = []
         for i, e in enumerate(evidencias):
-            espera = {a.hipotesis: a.valor for a in self.repositorio.antecedentes_de_pregunta(e.pregunta)}
+            espera = {a.hipotesis: a.valor for a in self.conocimiento.antecedentes_de_pregunta(e.pregunta)}
             esperado = espera.get(hipotesis)
             efecto = "neutral" if esperado is None else ("a favor" if esperado == e.valor else "en contra")
             filas.append({"pregunta": e.pregunta, "valor": e.valor, "espera": esperado, "efecto": efecto,

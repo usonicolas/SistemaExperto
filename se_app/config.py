@@ -34,6 +34,9 @@ MYSQL_HOST = _env.get("MYSQL_HOST", "127.0.0.1")
 MYSQL_PORT = int(_env.get("MYSQL_PORT", "3306"))
 MYSQL_USER = _env.get("MYSQL_USER", "root")
 MYSQL_PASSWORD = _env.get("MYSQL_PASSWORD", "")
+# Zona horaria de la sesion de MySQL: las fechas (NOW(), CURRENT_TIMESTAMP) quedan en hora de Colombia
+# aunque el servidor (contenedor Docker) trabaje en UTC.
+MYSQL_ZONA_HORARIA = _env.get("MYSQL_ZONA_HORARIA", "-05:00")
 
 ESQUEMA_CONOCIMIENTO = "se_base_conocimiento"
 ESQUEMA_TRANSACCIONAL = "se_transaccional"
@@ -44,8 +47,14 @@ SECRET_KEY = _env.get("SECRET_KEY", "cambiar-esta-clave-en-produccion")
 # Carpeta de instalacion de SWI-Prolog (para que Janus encuentre libswipl).
 SWIPL_HOME = _env.get("SWIPL_HOME", r"C:\Program Files\swipl")
 
-# RF01: bloqueo por intentos fallidos.
+# RNF01: bloqueo por intentos fallidos.
 MAX_INTENTOS = int(_env.get("MAX_INTENTOS", "5"))
 MINUTOS_BLOQUEO = int(_env.get("MINUTOS_BLOQUEO", "15"))
+
+# RNF13: aviso de mantenimiento programado que se muestra en la interfaz (vacio = sin aviso).
+AVISO_MANTENIMIENTO = _env.get("AVISO_MANTENIMIENTO", "")
+
+# RNF23: registro de errores no controlados, con fecha, usuario y traza.
+ARCHIVO_ERRORES = RAIZ_APP / "logs" / "errores.log"
 
 MOTOR_PL = RAIZ_APP / "prolog" / "motor.pl"

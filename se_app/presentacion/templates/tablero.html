@@ -12,10 +12,18 @@
   <p class="mt-1 text-slate-500">Este es el estado de sus viviendas y diagnósticos.</p>
 </div>
 
+{% if not cliente %}
+<div role="status" class="mb-8 rounded-2xl border border-indigo-200 bg-indigo-50 p-5 flex flex-wrap items-center gap-4">
+  <span class="h-10 w-10 shrink-0 rounded-xl bg-white text-indigo-600 grid place-items-center shadow-sm">{{ ui.icono("user", "w-5 h-5") }}</span>
+  <p class="flex-1 min-w-[220px] text-[15px] text-slate-700"><b class="text-slate-900">Complete sus datos de cliente.</b> Los necesitamos para registrar sus viviendas y guardar el historial de cada diagnóstico.</p>
+  <a href="/viviendas" class="btn btn-primario">Completar datos</a>
+</div>
+{% endif %}
+
 <div class="grid sm:grid-cols-2 xl:grid-cols-4 gap-4 lg:gap-6 mb-8">
   {{ ui.tarjeta_dato("Diagnósticos este mes", indicadores.mes or 0, "", "brain", "indigo") }}
   {{ ui.tarjeta_dato("Alertas críticas", indicadores.criticas or 0, "en todo el historial", "alert", "red") }}
-  {{ ui.tarjeta_dato("Citas pendientes", indicadores.citas or 0, "con especialistas", "calendar", "emerald") }}
+  {{ ui.tarjeta_dato("Viviendas activas", indicadores.viviendas or 0, "registradas", "building", "emerald") }}
   {%- set tiempo = "—" if not seg else (("%d s" % (seg|int)) if (seg|int) < 60 else ("%d min %02d s" % ((seg|int) // 60, (seg|int) % 60))) %}
   {{ ui.tarjeta_dato("Tiempo medio", tiempo, "por diagnóstico", "clock", "amber") }}
 </div>
@@ -94,19 +102,21 @@
     {% endif %}
   </section>
 
-  {% if resumen %}
   <section class="tarjeta p-6">
     <div class="flex items-center gap-3 mb-5">
-      <span class="h-10 w-10 rounded-xl bg-violet-50 text-violet-600 grid place-items-center">{{ ui.icono("book", "w-5 h-5") }}</span>
-      <div><h3 class="tarjeta-titulo">Base de conocimiento</h3><p class="text-sm text-slate-500">Estado de las reglas</p></div>
+      <span class="h-10 w-10 rounded-xl bg-violet-50 text-violet-600 grid place-items-center">{{ ui.icono("user", "w-5 h-5") }}</span>
+      <div><h3 class="tarjeta-titulo">Mis datos de cliente</h3><p class="text-sm text-slate-500">Asociados a su usuario</p></div>
     </div>
-    <dl class="grid grid-cols-2 gap-3 mb-5">
-      {% for etiqueta, valor, color in [("Preguntas", resumen.preguntas, "text-slate-900"), ("Reglas", resumen.hipotesis, "text-slate-900"), ("Por validar", resumen.pendientes, "text-violet-700"), ("Críticas", resumen.criticas, "text-red-700")] %}
-      <div class="rounded-xl bg-slate-50 p-4"><dt class="text-sm text-slate-500">{{ etiqueta }}</dt><dd class="text-2xl font-semibold {{ color }}">{{ valor }}</dd></div>
-      {% endfor %}
+    {% if cliente %}
+    <dl class="space-y-3 mb-5 text-[15px]">
+      <div class="flex justify-between gap-3"><dt class="text-slate-500">Documento</dt><dd class="font-medium text-slate-900">{{ cliente.tipo_documento }} {{ cliente.numero_documento }}</dd></div>
+      <div class="flex justify-between gap-3"><dt class="text-slate-500">Teléfono</dt><dd class="font-medium text-slate-900">{{ cliente.telefono or "—" }}</dd></div>
+      <div class="flex justify-between gap-3"><dt class="text-slate-500">Cliente desde</dt><dd class="font-medium text-slate-900">{{ cliente.fecha_registro | fecha }}</dd></div>
     </dl>
-    <a href="/conocimiento?pendientes=1" class="btn btn-secundario w-full">Revisar reglas pendientes</a>
+    {% else %}
+    <p class="mb-5 text-slate-500">Aún no ha registrado sus datos de cliente.</p>
+    {% endif %}
+    <a href="/viviendas" class="btn btn-secundario w-full">Gestionar datos y viviendas</a>
   </section>
-  {% endif %}
 </div>
 {% endblock %}

@@ -1,43 +1,98 @@
 {% extends "base.html" %}
-{% block titulo %}Mis viviendas{% endblock %}
-{% block encabezado %}Mis viviendas{% endblock %}
-{% macro campo(nombre, etiqueta, tipo="text", requerido=true, ejemplo="") %}
-<label class="block"><span class="etiqueta">{{ etiqueta }}</span>
-<input name="{{ nombre }}" type="{{ tipo }}" {{ "required" if requerido }} placeholder="{{ ejemplo }}" class="campo"></label>
+{% block titulo %}Mis datos y viviendas{% endblock %}
+{% block encabezado %}Mis datos y viviendas{% endblock %}
+
+{% macro campo(nombre, etiqueta, valor="", tipo="text", requerido=true, ejemplo="", errores={}) %}
+{%- set error = errores.get(nombre) -%}
+<label class="block"><span class="etiqueta">{{ etiqueta }}{% if not requerido %} <span class="font-normal text-slate-400">(opcional)</span>{% endif %}</span>
+<input name="{{ nombre }}" type="{{ tipo }}" {{ "required" if requerido }} value="{{ valor if valor is not none else '' }}" placeholder="{{ ejemplo }}"
+       {% if tipo == "number" %}min="0" max="500"{% endif %}
+       class="campo {{ 'border-red-400' if error }}" {% if error %}aria-invalid="true"{% endif %}>
+{% if error %}<span class="mt-1.5 block text-sm text-red-600">{{ error }}</span>{% endif %}</label>
 {% endmacro %}
+
+{% macro campos_vivienda(v, errores={}) %}
+{{ campo("alias", "Nombre para reconocerla", v.alias, ejemplo="Casa principal", errores=errores) }}
+{{ campo("direccion", "Dirección", v.direccion, ejemplo="Cra 15 # 82-30", errores=errores) }}
+{{ campo("ciudad", "Ciudad", v.ciudad, ejemplo="Bogotá", errores=errores) }}
+<label class="block"><span class="etiqueta">Tipo</span>
+  <select name="tipo_vivienda" class="campo">{% for t in TIPOS_VIVIENDA %}<option {{ "selected" if t == (v.tipo_vivienda or "Casa") }}>{{ t }}</option>{% endfor %}</select></label>
+{{ campo("antiguedad_anios", "Antigüedad (años)", v.antiguedad_anios, "number", false, errores=errores) }}
+{% endmacro %}
+
 {% block contenido %}
+{% set mensajes = {"cliente": "Sus datos de cliente quedaron guardados.", "vivienda": "La vivienda quedó registrada.",
+                   "actualizada": "Los datos de la vivienda quedaron actualizados.",
+                   "desactivada": "La vivienda quedó desactivada; su historial se conserva.", "activada": "La vivienda volvió a quedar activa."} %}
 {% if bienvenida %}
 <div role="status" class="mb-6 rounded-2xl border border-indigo-200 bg-indigo-50 px-5 py-4 flex gap-4">
   <span class="h-10 w-10 shrink-0 rounded-xl bg-white text-indigo-600 grid place-items-center shadow-sm">{{ ui.icono("check", "w-5 h-5") }}</span>
-  <div><p class="font-semibold text-slate-900">¡Bienvenido, {{ usuario.nombre.split()[0] }}! Su cuenta está lista.</p>
-  <p class="text-[15px] text-slate-600">Como primer paso, registre su vivienda en el formulario. Después podrá iniciar su primer diagnóstico.</p></div>
+  <div><p class="font-semibold text-slate-900">¡Bienvenido, {{ usuario.nombre.split()[0] }}! Su cuenta y su registro de cliente están listos.</p>
+  <p class="text-[15px] text-slate-600">Como siguiente paso, registre su vivienda. Después podrá iniciar su primer diagnóstico.</p></div>
 </div>
+{% elif aviso in mensajes %}
+<div role="status" class="mb-6 rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-3 text-emerald-800 flex gap-3">{{ ui.icono("check", "w-5 h-5 shrink-0") }}{{ mensajes[aviso] }}</div>
 {% endif %}
+
 <div class="grid xl:grid-cols-3 gap-6 lg:gap-8">
-  <section class="xl:col-span-2 space-y-4">
-    {% for v in viviendas %}
-    <article class="tarjeta p-6 flex flex-wrap items-center gap-5">
-      <span class="h-12 w-12 rounded-xl bg-indigo-50 text-indigo-600 grid place-items-center">{{ ui.icono("home") }}</span>
-      <div class="flex-1 min-w-[200px]">
-        <h2 class="text-lg font-semibold text-slate-900">{{ v.alias }}</h2>
-        <p class="text-sm text-slate-500">{{ v.direccion }} · {{ v.ciudad }} · {{ v.tipo_vivienda }}{% if v.antiguedad_anios %} · {{ v.antiguedad_anios }} años{% endif %}</p>
+  <div class="xl:col-span-2 space-y-6">
+    {# ---------------------------------------------------------------- datos del cliente #}
+    {% set dc = datos_cliente or {} %}
+    <form method="post" action="/cliente" class="tarjeta p-6">
+      <div class="flex items-center gap-3 mb-5">
+        <span class="h-10 w-10 rounded-xl bg-violet-50 text-violet-600 grid place-items-center">{{ ui.icono("user", "w-5 h-5") }}</span>
+        <div><h2 class="tarjeta-titulo">Datos del cliente</h2>
+        <p class="text-sm text-slate-500">{{ usuario.nombre }} · {% if cliente %}cliente desde {{ cliente.fecha_registro | fecha }}{% else %}aún sin registrar{% endif %}</p></div>
       </div>
-      <p class="text-sm text-slate-500">{{ v.atenciones }} revisiones{% if v.ultima %} · última {{ v.ultima | fecha }}{% endif %}</p>
-      <a href="/diagnostico/nuevo" class="btn btn-secundario">Diagnosticar</a>
+      <div class="grid sm:grid-cols-3 gap-4">
+        <label class="block"><span class="etiqueta">Tipo de documento</span>
+          <select name="tipo_documento" class="campo">{% for codigo, nombre in TIPOS_DOCUMENTO %}<option value="{{ codigo }}" {{ "selected" if dc.get("tipo_documento", "CC") == codigo }}>{{ nombre }}</option>{% endfor %}</select></label>
+        {{ campo("numero_documento", "Número de documento", dc.get("numero_documento", ""), errores=errores_cliente) }}
+        {{ campo("telefono", "Teléfono", dc.get("telefono", ""), "tel", false, errores=errores_cliente) }}
+      </div>
+      <div class="mt-5 flex justify-end"><button class="btn btn-primario">{{ "Actualizar datos" if cliente else "Registrar datos de cliente" }}</button></div>
+    </form>
+
+    {# ---------------------------------------------------------------- viviendas del cliente #}
+    {% for v in viviendas %}
+    <article class="tarjeta p-6 {{ 'opacity-70' if not v.activa }}">
+      <div class="flex flex-wrap items-center gap-5">
+        <span class="h-12 w-12 rounded-xl {{ 'bg-indigo-50 text-indigo-600' if v.activa else 'bg-slate-100 text-slate-500' }} grid place-items-center">{{ ui.icono("home") }}</span>
+        <div class="flex-1 min-w-[200px]">
+          <h2 class="text-lg font-semibold text-slate-900">{{ v.alias }}{% if not v.activa %} <span class="ml-1 align-middle text-xs font-semibold rounded-lg bg-slate-100 text-slate-500 px-2 py-0.5">Inactiva</span>{% endif %}</h2>
+          <p class="text-sm text-slate-500">{{ v.direccion }} · {{ v.ciudad }} · {{ v.tipo_vivienda }}{% if v.antiguedad_anios %} · {{ v.antiguedad_anios }} años{% endif %}</p>
+          <p class="text-sm text-slate-500">{{ v.atenciones }} revisiones{% if v.ultima %} · última {{ v.ultima | fecha }}{% endif %}</p>
+        </div>
+        <div class="flex flex-wrap gap-2">
+          {% if v.activa %}<a href="/diagnostico/nuevo" class="btn btn-secundario">Diagnosticar</a>{% endif %}
+          <form method="post" action="/viviendas/{{ v.id_vivienda }}/estado" {% if v.activa %}onsubmit="return confirm('¿Desactivar esta vivienda? Su historial se conserva.')"{% endif %}>
+            <input type="hidden" name="activa" value="{{ 0 if v.activa else 1 }}">
+            <button class="btn btn-secundario {{ 'text-red-600' if v.activa else 'text-emerald-700' }}">{{ "Desactivar" if v.activa else "Activar" }}</button>
+          </form>
+        </div>
+      </div>
+      <details class="mt-4 border-t border-slate-100 pt-4" {{ "open" if editando == v.id_vivienda }}>
+        <summary class="cursor-pointer text-sm font-semibold text-indigo-600">Editar datos de la vivienda</summary>
+        <form method="post" action="/viviendas/{{ v.id_vivienda }}" class="mt-4 grid sm:grid-cols-2 gap-4">
+          {{ campos_vivienda(datos_vivienda if editando == v.id_vivienda else v, errores_vivienda if editando == v.id_vivienda else {}) }}
+          <div class="sm:col-span-2 flex justify-end"><button class="btn btn-primario">Guardar cambios</button></div>
+        </form>
+      </details>
     </article>
     {% else %}
     <div class="rounded-2xl bg-white border border-dashed border-slate-300 p-10 text-center text-slate-500">Aún no tiene viviendas registradas.</div>
     {% endfor %}
-  </section>
+  </div>
+
+  {# ---------------------------------------------------------------- registrar vivienda #}
   <form method="post" action="/viviendas" class="tarjeta p-6 space-y-4 h-fit">
     <h2 class="tarjeta-titulo">Registrar vivienda</h2>
-    {{ campo("alias", "Nombre para reconocerla", ejemplo="Casa principal") }}
-    {{ campo("direccion", "Dirección", ejemplo="Cra 15 # 82-30") }}
-    {{ campo("ciudad", "Ciudad", ejemplo="Bogotá") }}
-    <label class="block"><span class="etiqueta">Tipo</span>
-      <select name="tipo_vivienda" class="campo"><option>Casa</option><option>Apartamento</option><option>Otro</option></select></label>
-    {{ campo("antiguedad_anios", "Antigüedad (años)", "number", false) }}
-    <button class="btn btn-primario w-full">Guardar vivienda</button>
+    {% if not cliente %}
+    <p class="rounded-xl bg-amber-50 border border-amber-200 px-4 py-3 text-sm text-amber-900">Primero registre sus datos de cliente.</p>
+    {% endif %}
+    {% if errores_vivienda.general and not editando %}<p role="alert" class="rounded-xl bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-800">{{ errores_vivienda.general }}</p>{% endif %}
+    {{ campos_vivienda(datos_vivienda if not editando else {}, errores_vivienda if not editando else {}) }}
+    <button class="btn btn-primario w-full" {{ "disabled" if not cliente }}>Guardar vivienda</button>
   </form>
 </div>
 {% endblock %}

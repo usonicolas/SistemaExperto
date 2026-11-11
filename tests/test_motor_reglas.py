@@ -13,7 +13,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from se_app.contenedor import contenedor  # noqa: E402
 from se_app.negocio.motor_prolog import MotorProlog  # noqa: E402
-from tests.base_prueba import RepositorioEnMemoria  # noqa: E402
+from tests.base_prueba import ConocimientoDAOMemoria  # noqa: E402
 
 requiere_mysql = pytest.mark.skipif(not contenedor.bd.disponible(), reason="MySQL no disponible")
 
@@ -32,7 +32,7 @@ def recorrer(motor, categoria, contestar, limite=40):
 class TestMotorPrologUnitario:
     @pytest.fixture
     def motor(self):
-        m = MotorProlog(RepositorioEnMemoria())
+        m = MotorProlog(ConocimientoDAOMemoria())
         m.recargar()
         yield m
         if contenedor.bd.disponible():       # deja cargada la base real para las demas pruebas
@@ -63,7 +63,7 @@ class TestMotorPrologUnitario:
 def test_arboles_cubren_todas_las_reglas():
     """Cada regla es exactamente una hoja de su arbol, mas una conclusion por defecto por categoria."""
     motor = contenedor.motor_prolog
-    kb = contenedor.repo_conocimiento.leer_base()
+    kb = contenedor.dao_conocimiento.leer_base()
     motor.cargar(kb)
 
     def hojas(n):

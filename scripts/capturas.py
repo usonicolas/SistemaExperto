@@ -2,17 +2,17 @@
 
 Toma dos grupos de imagenes en ../mockups/capturas/:
   prototipos/  las tres direcciones visuales (A, B y C) con datos de ejemplo
-  aplicacion/  la aplicacion real, con los tres roles
+  aplicacion/  la aplicacion real: registro, viviendas, diagnostico, reporte e historial del usuario
 
-Usa Playwright con el Microsoft Edge instalado (no descarga navegadores).
+Usa Playwright con Google Chrome o Microsoft Edge ya instalados (no descarga navegadores).
 Requiere MySQL encendido y la aplicacion corriendo.
 
 Uso (desde la carpeta aplicacion):
     .venv\\Scripts\\python -m scripts.capturas [--url http://127.0.0.1:8000]
 
-La primera vez agrega al usuario 'consulta' unos diagnosticos de ejemplo
-(electrico, hidraulico y humedad) para que el tablero y el historial no
-salgan vacios. Las atenciones que crea solo para fotografiar una
+La primera vez agrega al cliente de prueba 'consulta' una segunda vivienda
+y unos diagnosticos de ejemplo (electrico, hidraulico y humedad) para que
+el tablero y el historial no salgan vacios. Las atenciones que crea solo para fotografiar una
 pregunta o un reporte se borran al final.
 """
 import argparse
@@ -114,7 +114,7 @@ def ingresar(pagina, base, usuario, clave):
 
 
 def nueva_atencion(pagina, base, categoria, zona) -> int:
-    """Abre una atencion en la primera vivienda del usuario y devuelve su id."""
+    """Abre una atencion en la primera vivienda activa del cliente y devuelve su id."""
     return pagina.evaluate("""async ([cat, zona]) => {
         const t = await (await fetch('/diagnostico/nuevo')).text();
         const f = new FormData();
@@ -137,27 +137,30 @@ def responder_hasta(pagina, id_atencion, respuestas: dict, maximo=40):
             await fetch(`/diagnostico/${id}/responder`, {method: 'POST', body: f}); }""", [id_atencion, m.group(1), str(valor)])
 
 
+def granulos() -> dict:
+    reglas = {}
+    for c in contenedor.dao_conocimiento.leer_base()["condiciones"]:
+        reglas.setdefault(c["hipotesis"], {})[c["pregunta"]] = c["valor_respuesta"]
+    return reglas
+
+
 def datos_demo(pagina, base):
-    """Agrega diagnosticos de ejemplo al consultante, una sola vez."""
+    """Agrega al cliente de prueba una segunda vivienda y diagnosticos de ejemplo, una sola vez."""
     cerradas = db.consultar_uno(
         "SELECT COUNT(*) AS n FROM atencion a JOIN vivienda v ON v.id_vivienda = a.id_vivienda "
-        "JOIN usuario u ON u.id_usuario = v.id_usuario WHERE u.usuario = 'consulta' AND a.estado <> 'EN_CURSO'")["n"]
+        "JOIN cliente c ON c.id_cliente = v.id_cliente JOIN usuario u ON u.id_usuario = c.id_usuario "
+        "WHERE u.usuario = 'consulta' AND a.estado <> 'EN_CURSO'")["n"]
     if cerradas >= 6:
         return
-    print("  agregando diagnosticos de ejemplo al usuario consulta")
-    reglas = {}
-    for c in contenedor.repo_conocimiento.leer_base()["condiciones"]:
-        reglas.setdefault(c["hipotesis"], {})[c["pregunta"]] = c["valor_respuesta"]
+    print("  agregando una vivienda y diagnosticos de ejemplo al cliente de prueba")
+    pagina.evaluate("""async () => { const f = new FormData();
+        for (const [k, v] of Object.entries({alias: 'Apartamento en arriendo', direccion: 'Cra 15 # 82-30',
+             ciudad: 'Bogotá', tipo_vivienda: 'Apartamento', antiguedad_anios: '12'})) f.append(k, v);
+        await fetch('/viviendas', {method: 'POST', body: f}); }""")
+    reglas = granulos()
     for categoria, zona, regla in DEMO:
         id_atencion = nueva_atencion(pagina, base, categoria, zona)
         responder_hasta(pagina, id_atencion, reglas[regla])
-    # Una cita para que la pantalla de citas tenga contenido.
-    ultima = db.consultar_uno(
-        "SELECT a.id_atencion FROM atencion a JOIN vivienda v ON v.id_vivienda = a.id_vivienda "
-        "JOIN usuario u ON u.id_usuario = v.id_usuario JOIN atencion_diagnostico d ON d.id_atencion = a.id_atencion "
-        "WHERE u.usuario = 'consulta' AND d.id_hipotesis IS NOT NULL ORDER BY a.id_atencion DESC LIMIT 1")
-    pagina.evaluate("""async (id) => { const f = new FormData(); f.append('fecha', '2026-11-05T09:00'); f.append('observaciones', 'Llamar antes de llegar');
-        await fetch(`/diagnostico/${id}/cita`, {method: 'POST', body: f}); }""", ultima["id_atencion"])
 
 
 def aplicacion(navegador, base, clave):
@@ -169,34 +172,33 @@ def aplicacion(navegador, base, clave):
     p.goto(f"{base}/salir")
     foto(p, "aplicacion", "01-login")
     p.goto(f"{base}/registro")
-    foto(p, "aplicacion", "02-registro", completa=True)
-    p.fill("#f-nombres", "Ana"); p.fill("#f-apellidos", "Ejemplo"); p.fill("#f-numero_documento", "12")
+    foto(p, "aplicacion", "02-registro-usuario-y-cliente", completa=True)
+    p.fill("#f-nombres", "Ana"); p.fill("#f-apellidos", "Ejemplo"); p.fill("#f-numero_documento", "1000000003")
     p.fill("#f-correo", "ana@"); p.fill("#f-usuario", "consulta"); p.fill("#f-contrasena", "corta"); p.fill("#f-confirmacion", "otra")
     p.click("button:has-text('Crear cuenta')")
     foto(p, "aplicacion", "03-registro-validaciones", completa=True)
 
-    # Consultante
+    # Usuario: gestion de clientes y viviendas (RF01) y gestion de atenciones (RF02)
     ingresar(p, base, "consulta", clave)
     datos_demo(p, base)
     p.goto(f"{base}/")
-    foto(p, "aplicacion", "04-consultante-tablero", completa=True)
+    foto(p, "aplicacion", "04-tablero", completa=True)
     p.goto(f"{base}/viviendas")
-    foto(p, "aplicacion", "05-consultante-viviendas")
+    p.evaluate("document.querySelector('article details').open = true")
+    foto(p, "aplicacion", "05-datos-y-viviendas", completa=True)
     p.goto(f"{base}/diagnostico/nuevo?categoria=ELE")
-    foto(p, "aplicacion", "06-consultante-nuevo-diagnostico", completa=True)
+    foto(p, "aplicacion", "06-nuevo-diagnostico", completa=True)
     id_ele = nueva_atencion(p, base, "ELE", "Cocina")
     temporales.append(id_ele)
     p.goto(f"{base}/diagnostico/{id_ele}")
-    foto(p, "aplicacion", "07-consultante-primera-pregunta")
+    foto(p, "aplicacion", "07-primera-pregunta")
     responder_hasta(p, id_ele, {"olor_quemado": 1}, maximo=1)
     p.goto(f"{base}/diagnostico/{id_ele}")
     p.click("summary:has-text('Por qué')")
-    foto(p, "aplicacion", "08-consultante-pregunta-con-explicacion")
+    foto(p, "aplicacion", "08-pregunta-con-explicacion")
     # Diagnosticos recien calculados por el motor bayesiano (se borran al final):
     # uno critico de gas, uno hidraulico y uno sin sintomas (conclusion por defecto).
-    reglas = {}
-    for c in contenedor.repo_conocimiento.leer_base()["condiciones"]:
-        reglas.setdefault(c["hipotesis"], {})[c["pregunta"]] = c["valor_respuesta"]
+    reglas = granulos()
     critica = nueva_atencion(p, base, "GAS", "Cocina")
     alta = nueva_atencion(p, base, "HID", "Baño")
     defecto = nueva_atencion(p, base, "CAC", "Sala")
@@ -205,62 +207,43 @@ def aplicacion(navegador, base, clave):
     responder_hasta(p, alta, reglas["H08"])
     responder_hasta(p, defecto, {})
     p.goto(f"{base}/diagnostico/{critica}/reporte")
-    foto(p, "aplicacion", "09-consultante-reporte-alerta-critica", completa=True)
+    foto(p, "aplicacion", "09-reporte-alerta-critica", completa=True)
     p.goto(f"{base}/diagnostico/{alta}/reporte")
-    foto(p, "aplicacion", "10-consultante-reporte", completa=True)
+    foto(p, "aplicacion", "10-reporte-hipotesis-ponderadas", completa=True)
     p.goto(f"{base}/diagnostico/{defecto}/reporte")
-    foto(p, "aplicacion", "11-consultante-sin-diagnostico", completa=True)
+    foto(p, "aplicacion", "11-reporte-sin-diagnostico", completa=True)
     p.goto(f"{base}/historial")
-    foto(p, "aplicacion", "12-consultante-historial", completa=True)
-    p.goto(f"{base}/citas")
-    foto(p, "aplicacion", "13-consultante-citas")
-    p.goto(f"{base}/conocimiento")
-    foto(p, "aplicacion", "14-consultante-acceso-restringido")
+    foto(p, "aplicacion", "12-historial", completa=True)
+    # Una atencion que no es del usuario (de otro cliente o inexistente): no se muestra (RNF01).
+    ajena = (db.consultar_uno("SELECT COALESCE(MAX(id_atencion), 0) + 1000 AS n FROM atencion") or {"n": 999999})["n"]
+    p.goto(f"{base}/diagnostico/{ajena}/reporte")
+    foto(p, "aplicacion", "13-atencion-de-otro-usuario-restringida")
 
-    # Celular (consultante)
+    # Celular
     m = navegador.new_page(viewport=MOVIL, device_scale_factor=2)
     m.context.add_cookies(p.context.cookies())
     m.goto(f"{base}/")
-    foto(m, "aplicacion", "15-movil-tablero")
+    foto(m, "aplicacion", "14-movil-tablero")
     m.goto(f"{base}/diagnostico/{id_ele}")
-    foto(m, "aplicacion", "16-movil-pregunta")
+    foto(m, "aplicacion", "15-movil-pregunta")
     m.goto(f"{base}/diagnostico/{critica}/reporte")
-    foto(m, "aplicacion", "17-movil-reporte-alerta")
+    foto(m, "aplicacion", "16-movil-reporte-alerta")
     m.close()
-
-    # Experto
-    ingresar(p, base, "experto", clave)
-    p.goto(f"{base}/")
-    foto(p, "aplicacion", "18-experto-tablero", completa=True)
-    id_exp = nueva_atencion(p, base, "ELE", "Cocina")
-    temporales.append(id_exp)
-    responder_hasta(p, id_exp, {"olor_quemado": 1}, maximo=1)
-    p.goto(f"{base}/diagnostico/{id_exp}")
-    foto(p, "aplicacion", "19-experto-pregunta-inferencia-bayesiana")
-    responder_hasta(p, id_exp, {"olor_quemado": 1, "sobrecalentamiento": 1})
-    p.goto(f"{base}/diagnostico/{id_exp}/reporte")
-    foto(p, "aplicacion", "20-experto-reporte-hipotesis-ponderadas", completa=True)
-    p.goto(f"{base}/conocimiento?categoria=ELE&hipotesis=E05")
-    foto(p, "aplicacion", "21-experto-base-conocimiento", completa=True)
-    # El arbol se muestra completo, sin el limite de alto de su area de desplazamiento.
-    for numero, categoria, nombre in (("22", "ELE", "electrica"), ("23", "GAS", "gas")):
-        p.goto(f"{base}/arbol?categoria={categoria}")
-        p.evaluate("document.getElementById('lienzo').style.maxHeight = 'none'")
-        foto(p, "aplicacion", f"{numero}-experto-arbol-{nombre}", completa=True)
-
-    # Administrador
-    ingresar(p, base, "admin", clave)
-    p.goto(f"{base}/usuarios")
-    foto(p, "aplicacion", "24-admin-usuarios")
-    p.click("button:has-text('Nuevo usuario')")
-    foto(p, "aplicacion", "25-admin-nuevo-usuario")
-    p.goto(f"{base}/bitacora")
-    foto(p, "aplicacion", "26-admin-bitacora")
     p.close()
 
     # Las atenciones creadas solo para fotografiar se borran (con sus respuestas y diagnostico).
     for id_atencion in temporales:
         db.ejecutar("DELETE FROM atencion WHERE id_atencion = %s", (id_atencion,))
+
+
+def abrir_navegador(pw):
+    """Google Chrome o, si no esta, Microsoft Edge: los navegadores ya instalados en el equipo."""
+    for canal in ("chrome", "msedge"):
+        try:
+            return pw.chromium.launch(channel=canal)
+        except Exception:          # el canal no esta instalado o no arranca con esta version de Playwright
+            continue
+    raise SystemExit("No se pudo abrir Google Chrome ni Microsoft Edge.")
 
 
 def main():
@@ -271,7 +254,7 @@ def main():
     for carpeta in ("prototipos", "aplicacion"):
         (SALIDA / carpeta).mkdir(parents=True, exist_ok=True)
     with sync_playwright() as pw:
-        navegador = pw.chromium.launch(channel="msedge")
+        navegador = abrir_navegador(pw)
         if args.solo != "aplicacion":
             prototipos(navegador)
         if args.solo != "prototipos":

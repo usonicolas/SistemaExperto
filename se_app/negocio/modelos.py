@@ -1,11 +1,22 @@
-"""Entidades del dominio del sistema experto."""
+"""Entidades del dominio del sistema experto.
+
+Son tambien los objetos de transferencia (DTO) que intercambian la capa de
+negocio y los DAO de la capa de datos.
+"""
 import math
 from dataclasses import dataclass, field
+from datetime import datetime
 
 # Codigo de la hipotesis H0: "no hay una falla identificable con las reglas".
 H0 = "H0"
 URGENCIAS = ("Critica", "Alta", "Media", "Baja")
 
+TIPOS_DOCUMENTO = (("CC", "Cédula de ciudadanía"), ("CE", "Cédula de extranjería"),
+                   ("TI", "Tarjeta de identidad"), ("PAS", "Pasaporte"))
+TIPOS_VIVIENDA = ("Casa", "Apartamento", "Otro")
+
+
+# ---------------------------------------------------------------- base de conocimiento
 
 @dataclass(frozen=True)
 class Pregunta:
@@ -15,6 +26,7 @@ class Pregunta:
     texto: str
     enunciado_si: str
     enunciado_no: str
+    activa: bool = True
 
     def enunciado(self, valor: int) -> str:
         """Redaccion de la respuesta dada, para las explicaciones."""
@@ -114,3 +126,94 @@ class Decision:
     @property
     def conclusion(self) -> Hipotesis:
         return self.distribucion.lider()
+
+
+# ---------------------------------------------------------------- base transaccional
+
+@dataclass
+class Usuario:
+    """Persona que se registra para diagnosticar y llevar el historial de sus viviendas (tabla usuario).
+
+    La aplicacion no tiene roles ni administrador: todos los usuarios son
+    consultantes y cada uno solo ve sus propios datos.
+    """
+    nombres: str
+    apellidos: str
+    correo: str
+    usuario: str
+    contrasena_hash: str = ""
+    id_usuario: int | None = None
+    intentos_fallidos: int = 0
+    bloqueado_hasta: datetime | None = None
+    fecha_registro: datetime | None = None
+
+    @property
+    def nombre(self) -> str:
+        return f"{self.nombres} {self.apellidos}"
+
+
+@dataclass
+class Cliente:
+    """Datos del cliente asociado a cada usuario (tabla cliente)."""
+    id_usuario: int
+    tipo_documento: str
+    numero_documento: str
+    telefono: str | None = None
+    id_cliente: int | None = None
+    fecha_registro: datetime | None = None
+
+
+@dataclass
+class Vivienda:
+    """Inmueble de un cliente (tabla vivienda)."""
+    id_cliente: int
+    alias: str
+    direccion: str
+    ciudad: str
+    tipo_vivienda: str = "Casa"
+    antiguedad_anios: int | None = None
+    activa: bool = True
+    id_vivienda: int | None = None
+    atenciones: int = 0                  # calculado: atenciones registradas
+    ultima: datetime | None = None       # calculado: fecha de la ultima atencion
+
+
+@dataclass
+class Atencion:
+    """Sesion de diagnostico de una categoria sobre una vivienda (tabla atencion)."""
+    id_atencion: int
+    id_vivienda: int
+    categoria: str                       # codigo de la categoria (puente a la base de conocimiento)
+    categoria_nombre: str
+    zona_vivienda: str | None
+    estado: str
+    fecha_inicio: datetime | None = None
+    fecha_fin: datetime | None = None
+    vivienda: str = ""                   # alias de la vivienda
+    direccion: str = ""
+    ciudad: str = ""
+
+    @property
+    def en_curso(self) -> bool:
+        return self.estado == "EN_CURSO"
+
+
+@dataclass
+class Diagnostico:
+    """Copia historica del diagnostico de una atencion (tabla atencion_diagnostico)."""
+    id_atencion: int
+    diagnostico_texto: str
+    id_hipotesis: int | None = None
+    codigo_hipotesis: str | None = None
+    nivel_urgencia: str | None = None
+    especialista_sugerido: str | None = None
+    accion_recomendada: str | None = None
+    factor_certeza: int | None = None
+    fecha_generacion: datetime | None = None
+    validada: bool | None = None
+    fuente: str | None = None
+
+    @property
+    def concluyente(self) -> bool:
+        return self.id_hipotesis is not None
+

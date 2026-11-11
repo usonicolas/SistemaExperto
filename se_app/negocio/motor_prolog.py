@@ -1,8 +1,10 @@
 """Motor de reglas simbolico en SWI-Prolog (prolog/motor.pl), via Janus.
 
-Complementa al motor bayesiano: dibuja el arbol de decision de cada
-categoria, comprueba la coherencia de las reglas y confirma de forma
-logica si la regla ganadora se cumple con las respuestas dadas.
+Complementa al motor bayesiano: confirma de forma logica si la regla
+ganadora se cumple con las respuestas dadas y entrega su explicacion. Las
+pruebas automatizadas lo usan ademas para recorrer el arbol de decision de
+cada categoria y comprobar que todas las reglas son alcanzables; la
+aplicacion no muestra el arbol.
 """
 import os
 import threading
@@ -21,9 +23,9 @@ janus.consult(str(config.MOTOR_PL))
 
 
 class MotorProlog:
-    def __init__(self, repositorio):
-        # repositorio: RepositorioConocimiento (capa de datos), inyectado.
-        self.repositorio = repositorio
+    def __init__(self, conocimiento):
+        # conocimiento: ConocimientoDAO (capa de datos), inyectado.
+        self.conocimiento = conocimiento
         # Janus admite hilos, pero el motor guarda la base en hechos dinamicos;
         # el candado evita consultar mientras otro hilo la recarga.
         self._candado = threading.Lock()
@@ -54,8 +56,8 @@ class MotorProlog:
             return janus.query_once("motor:total_reglas(N)")["N"]
 
     def recargar(self) -> int:
-        """Vuelve a leer la base de MySQL; al iniciar y tras cada cambio del experto."""
-        return self.cargar(self.repositorio.leer_base())
+        """Vuelve a leer la base de MySQL; se ejecuta al iniciar la aplicacion."""
+        return self.cargar(self.conocimiento.leer_base())
 
     @staticmethod
     def _hechos(evidencias) -> list[tuple[str, int]]:
@@ -83,7 +85,7 @@ class MotorProlog:
         return [(p, v) for p, v in r["P"]]
 
     def arbol(self, categoria: str, respuestas: tuple = ()) -> dict:
-        """Arbol de decision de la categoria, simulando las dos respuestas a cada pregunta del motor."""
+        """Arbol de decision de la categoria (validacion de cobertura en las pruebas, no se muestra)."""
         tipo, codigo = self.paso(categoria, list(respuestas))
         if tipo != "pregunta":
             return {"tipo": tipo, "codigo": codigo}

@@ -36,7 +36,7 @@
       <div role="alert" class="mb-6 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex gap-3">{{ ui.icono("alert", "w-5 h-5 shrink-0") }}Revise los campos marcados en rojo.</div>
       {% endif %}
       <form method="post" action="/registro" novalidate>
-        {{ fu.campos(datos, errores, tipos_documento) }}
+        {{ fu.campos(datos, errores) }}
         <button class="btn btn-lg btn-primario w-full mt-8">Crear cuenta {{ ui.icono("arrowR", "w-5 h-5") }}</button>
         <p class="mt-5 text-center text-sm text-slate-500 sm:hidden">¿Ya tiene cuenta? <a href="/login" class="font-semibold text-indigo-600">Inicie sesión</a></p>
       </form>

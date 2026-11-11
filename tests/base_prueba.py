@@ -1,8 +1,10 @@
 """Base de conocimiento minima en memoria para las pruebas unitarias (sin MySQL).
 
-RepositorioEnMemoria implementa la misma interfaz que RepositorioConocimiento,
-de modo que los motores de la capa de negocio se prueban sin la capa de datos.
+ConocimientoDAOMemoria implementa la interfaz ConocimientoDAO, igual que
+ConocimientoDAOMySQL; asi los motores de la capa de negocio se prueban sin la
+capa de datos (polimorfismo del patron DAO).
 """
+from se_app.datos.dao import ConocimientoDAO
 from se_app.negocio.modelos import Antecedente, Hipotesis, Pregunta
 
 REGLAS = {
@@ -15,7 +17,7 @@ PREGUNTAS = ("olor_quemado", "sobrecalentamiento", "breaker", "chispas")
 
 
 def base_minima() -> dict:
-    """Formato de RepositorioConocimiento.leer_base(), para cargar el motor Prolog."""
+    """Formato de ConocimientoDAO.leer_base(), para cargar el motor Prolog."""
     return {
         "categorias": [{"codigo": "ELE", "nombre": "Eléctrica"}],
         "preguntas": [{"codigo": c, "categoria": "ELE", "texto_pregunta": c, "enunciado_positivo": c,
@@ -27,9 +29,12 @@ def base_minima() -> dict:
     }
 
 
-class RepositorioEnMemoria:
+class ConocimientoDAOMemoria(ConocimientoDAO):
     def __init__(self):
         self.consultas = 0          # cuantas consultas granulares hizo el motor
+
+    def categorias(self):
+        return base_minima()["categorias"]
 
     def leer_base(self):
         return base_minima()
@@ -39,6 +44,10 @@ class RepositorioEnMemoria:
 
     def hipotesis_activas(self, categoria):
         return [Hipotesis(h, "ELE", h, u, fc) for h, (u, fc, _) in REGLAS.items()]
+
+    def hipotesis(self, codigo):
+        u, fc, _ = REGLAS[codigo]
+        return Hipotesis(codigo, "ELE", codigo, u, fc)
 
     def antecedentes_de_pregunta(self, pregunta):
         self.consultas += 1

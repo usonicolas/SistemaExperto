@@ -30,8 +30,10 @@
       </label>
       {% endfor %}
     </div>
+    {% elif not cliente %}
+    <p class="text-slate-600">Primero registre sus datos de cliente y su vivienda. <a href="/viviendas" class="font-semibold text-indigo-600">Completar mis datos</a></p>
     {% else %}
-    <p class="text-slate-600">Primero registre una vivienda. <a href="/viviendas" class="font-semibold text-indigo-600">Registrar vivienda</a></p>
+    <p class="text-slate-600">Primero registre una vivienda activa. <a href="/viviendas" class="font-semibold text-indigo-600">Registrar vivienda</a></p>
     {% endif %}
   </section>
 
